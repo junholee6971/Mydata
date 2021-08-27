@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.idispt.mydataPrj.dao.InvChrgVo">
+    <select id="getChrgByInvMonth" parameterType="Map" resultType="com.idispt.mydataPrj.vo.InvChrgVo">
+        SELECT A.SA_ID   AS SAID
+             , A.INVAMT 
+             , B.DUE_DATE AS DUEDAY
+        FROM   (
+               SELECT INV_YYYYMM    
+                    , SA_ID      
+                    , RPRSN_IA_ID
+                    , IA_ID
+                    , SUM(INV_AMT)  INVAMT
+               FROM   TB_BTSSACHRG A
+               WHERE  INV_YYYYMM = #{invYyyymm}
+               AND    INV_FLAG   = '1'
+               AND    SA_ID      = #{said}
+               GROUP  BY INV_YYYYMM, SA_ID, RPRSN_IA_ID, IA_ID
+               ) A
+             , TB_BTSKTPIA B
+        WHERE  B.INV_YYYYMM   = A.INV_YYYYMM
+        AND    B.BUZ_CD       = '2'
+        AND    B.ISSUE_RSN_CD = '1'
+        AND    B.RPRSN_IA_ID  = A.RPRSN_IA_ID       
+    </select>
+</mapper>

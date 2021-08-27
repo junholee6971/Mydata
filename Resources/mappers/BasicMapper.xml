@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.idispt.mydataPrj.dao.BasicDao">
+    <select id="getTimestamp" resultType="String">
+        SELECT TO_CHAR(SYSTIMESTAMP, 'YYYYMMDDHH24MISSFF9') FROM DUAL
+    </select>
+    
+    <select id="getCi" parameterType="Map" resultType="com.idispt.mydataPrj.vo.BasicVo">
+        SELECT IPIN_CI AS CI  
+        FROM   JUO_CUS_INFO A
+             , JUO_SUB_INFO B
+             , TB_CSAKTFBAN C
+             , TB_CSASASTAT D
+        WHERE  A.CUSTOMER_ID = B.CUSTOMER_ID
+        AND    B.SVC_CNTR_NO = C.SVC_CNTR_NO
+        AND    C.SA_ID = D.SA_ID
+        AND    D.APPLY_EXPIR_DATE = TO_DATE('99991231235959', 'YYYYMMDDHH24MISS')
+        AND    CLOSE_DATE IS NULL
+        AND    IPIN_CI = #{ci}
+        AND    ROWNUM  = 1
+    </select>
+    
+    <select id="getSubScribeList" parameterType="Map" resultType="com.idispt.mydataPrj.vo.SubScribeListVo">
+        SELECT SAID
+             , PLS_DECRYPT_B64_NM(SUBSCNO,'AES-256')  SUBSCNO
+             , STATUS
+             , '01'   TELTYPE
+             , DECODE(#{remainCnt}, 0, TOTCNT, #{remainCnt}) - LEAST(TO_NUMBER(#{reqCnt}), TO_NUMBER(DECODE(#{remainCnt},0,#{reqCnt}, #{remainCnt}))) REMAINCNT 
+             , TOTCNT - #{remainCnt} - #{reqCnt}  REMAINCNT
+        FROM   (
+               SELECT SA_ID                                         SAID
+                    , KTF_TELNO                                     SUBSCNO
+                    , DECODE(STATUS_CD, '2', '02', '3', '03', '01') STATUS
+                    , ROWNUM                                        RN
+                    , COUNT(1) OVER ()                              TOTCNT
+               FROM   (
+                      SELECT C.SA_ID
+                           , KTF_TELNO
+                           , SUBSTR(STATUS_CD, 2, 1) STATUS_CD
+                      FROM   JUO_CUS_INFO A
+                           , JUO_SUB_INFO B
+                           , TB_CSAKTFBAN C
+                           , TB_CSASASTAT D
+                           , TB_CSASVCAGR E      /* CI 설정되면 지울 대상 */
+                      WHERE  A.CUSTOMER_ID = B.CUSTOMER_ID
+                      AND    B.SVC_CNTR_NO = C.SVC_CNTR_NO
+                      AND    C.SA_ID       = D.SA_ID
+                      AND    D.APPLY_EXPIR_DATE = TO_DATE('99991231235959', 'YYYYMMDDHH24MISS')
+                      AND    D.CLOSE_DATE IS NULL
+                      /* AND    IPIN_CI     = */
+                      AND    E.SA_ID       = D.SA_ID
+                      AND    E.APPLY_EXPIR_DATE = TO_DATE('99991231235959', 'YYYYMMDDHH24MISS')
+                      AND    E.CUST_ID     = #{ci}
+                      ORDER  BY C.SA_ID
+                      ) A
+               )
+        WHERE  RN <![CDATA[ > ]]> TOTCNT - DECODE( #{remainCnt}, 0, TOTCNT,  #{remainCnt})  
+        AND    RN <![CDATA[ <= ]]> TOTCNT - DECODE(#{remainCnt}, 0, TOTCNT, #{remainCnt}) + #{reqCnt}
+    </select>
+    
+    <insert id="insertMsg" parameterType="Map">
+        INSERT INTO LJH_SALMYDATALOG (REQ_DATETIMESS, REQ_MESSAGE) VALUES ( TO_TIMESTAMP(#{curtime}, 'YYYYMMDDHH24MISSFF9'), #{msg} )
+    </insert>
+    
+    <update id="updateMsg" parameterType="Map">
+        UPDATE LJH_SALMYDATALOG
+        SET    RES_MESSAGE = #{resmsg}
+             , RES_DATETIMESS = SYSTIMESTAMP
+        WHERE  REQ_DATETIMESS = TO_TIMESTAMP(#{curtime}, 'YYYYMMDDHH24MISSFF9')
+    </update>
+</mapper>
